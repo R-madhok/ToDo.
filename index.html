@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>To-Do</title>
+  <style>
+    /* —— Base reset —— */
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;font-family:"Inter",system-ui,sans-serif;letter-spacing:-0.02em}
+    body{display:flex;flex-direction:column;align-items:center;padding:2rem;background:radial-gradient(circle at top left,#1d1d1d,#111);color:#f5f6f7;overflow-y:auto}
+    h1{font-size:2.25rem;font-weight:600;margin-bottom:1.25rem;letter-spacing:-0.02em}
+    a{color:rgb(59 130 246);text-decoration:none;transition:opacity 0.2s ease}
+    a:hover{opacity:0.8}
+
+    /* —— Glass container —— */
+    .glass{width:100%;max-width:720px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:1rem;backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);padding:2rem;box-shadow:0 20px 40px rgba(0,0,0,.45)}
+
+    /* —— Form —— */
+    .form-row{display:flex;gap:.75rem;margin-bottom:1.25rem}
+    .form-row input[type=text]{flex:1;background:rgba(255,255,255,.1);border:none;padding:.75rem 1rem;border-radius:.75rem;color:#fff;font-size:1rem;outline:none}
+    .form-row button{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);padding:0 1.25rem;border-radius:.75rem;font-size:1rem;color:#fff;cursor:pointer;transition:background .2s ease,border .2s ease}
+    .form-row button:hover{background:rgba(255,255,255,.25)}
+
+    /* —— Progress bar —— */
+    .progress-wrap{margin-bottom:1.5rem}
+    .progress-track{width:100%;height:8px;background:rgba(255,255,255,.09);border-radius:4px;overflow:hidden}
+    .progress-bar{height:100%;width:0;background:linear-gradient(90deg,#60a5fa,#2563eb)}
+    .progress-text{font-size:.875rem;opacity:.8;margin-top:.5rem;text-align:right}
+
+    /* —— Task list —— */
+    .tasks{list-style:none;display:flex;flex-direction:column;gap:.75rem}
+    .task{display:flex;align-items:flex-start;padding:.75rem 1rem;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.2);border-radius:.75rem}
+    .task.done .task-text{text-decoration:line-through;opacity:.5}
+    .task .complete{margin-right:.9rem;min-width:1.1rem;min-height:1.1rem;accent-color:#3b82f6;cursor:pointer}
+    .text-wrap{flex:1;display:flex;flex-direction:column}
+    .task-text{word-break:break-word}
+    .description{font-size:.875rem;opacity:.75;margin-top:.15rem}
+    .time{font-size:.875rem;opacity:.8;white-space:nowrap;margin-left:1rem}
+
+    /* —— Dialog —— */
+    dialog{border:none;border-radius:.75rem;padding:1.5rem;background:rgba(30,30,30,.95);color:#fff;box-shadow:0 10px 30px rgba(0,0,0,.6);position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);margin:0}
+    dialog::backdrop{background:rgba(0,0,0,.6);backdrop-filter:blur(4px)}
+    .dialog-field{display:flex;flex-direction:column;gap:.4rem;margin-bottom:1rem}
+    dialog input,dialog textarea{background:rgba(255,255,255,.08);border:none;color:#fff;border-radius:.5rem;padding:.5rem .75rem;resize:none;font-family:inherit}
+    .dialog-actions{display:flex;justify-content:flex-end;gap:.75rem}
+    dialog button{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);padding:.4rem 1rem;border-radius:.5rem;color:#fff;cursor:pointer}
+    dialog button[type=submit]{background:#3b82f6;border-color:#3b82f6}
+
+    :focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
+  </style>
+</head>
+<body>
+  <h1>To-do.</h1>
+  <p>By <a href="https://rohanmadhok.com">Rohan Madhok</a></p>
+  <br>
+  <section class="glass">
+    <div class="form-row">
+      <input id="taskInput" type="text" placeholder="Add a task…" />
+      <button id="detailsBtn" aria-label="Add details">…</button>
+      <button id="addBtn" aria-label="Add task">＋</button>
+    </div>
+
+    <div class="progress-wrap" id="progressWrap" style="display:none">
+      <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
+      <div id="progressText" class="progress-text"></div>
+    </div>
+
+    <ul id="tasks" class="tasks"></ul>
+  </section>
+
+  <!-- —— Details Dialog —— -->
+  <dialog id="detailsDialog">
+    <form id="detailsForm" method="dialog">
+      <div class="dialog-field">
+        <label for="timeInput">Time (minutes)</label>
+        <input id="timeInput" type="number" min="1" placeholder="e.g. 45" />
+      </div>
+      <div class="dialog-field">
+        <label for="descInput">Description</label>
+        <textarea id="descInput" rows="3" placeholder="Optional details"></textarea>
+      </div>
+      <div class="dialog-actions">
+        <button value="cancel">Cancel</button>
+        <button id="saveDetailsBtn" value="default" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    const taskInput   = document.getElementById('taskInput');
+    const addBtn      = document.getElementById('addBtn');
+    const tasksEl     = document.getElementById('tasks');
+    const progressBar = document.getElementById('progressBar');
+    const progressText= document.getElementById('progressText');
+    const progressWrap= document.getElementById('progressWrap');
+
+    // Details dialog elements
+    const detailsBtn  = document.getElementById('detailsBtn');
+    const detailsDlg  = document.getElementById('detailsDialog');
+    const timeInput   = document.getElementById('timeInput');
+    const descInput   = document.getElementById('descInput');
+
+    let pendingDetails = {time:null, desc:''};
+
+    /* —— Load tasks —— */
+    const tasks = JSON.parse(localStorage.getItem('glass_tasks_v2') || '[]');
+    tasks.forEach(addTaskElement);
+    updateProgress();
+
+    /* —— Events —— */
+    addBtn.addEventListener('click', handleAdd);
+    taskInput.addEventListener('keyup', e => { if (e.key === 'Enter') handleAdd(); });
+
+    detailsBtn.addEventListener('click', () => {
+      timeInput.value = pendingDetails.time || '';
+      descInput.value = pendingDetails.desc || '';
+      detailsDlg.showModal();
+    });
+
+    detailsDlg.addEventListener('close', () => {
+      if (detailsDlg.returnValue === 'cancel') {
+        detailsDlg.close();
+        return;
+      }
+      const time = parseInt(timeInput.value.trim(), 10);
+      pendingDetails.time = isNaN(time) ? null : time;
+      pendingDetails.desc = descInput.value.trim();
+      detailsDlg.close();
+    });
+
+    /* —— Add task —— */
+    function handleAdd() {
+      const text = taskInput.value.trim();
+      if (!text) return;
+
+      const task = {
+        id: Date.now(),
+        text,
+        time: pendingDetails.time,
+        desc: pendingDetails.desc,
+        done: false
+      };
+
+      tasks.push(task);
+      persist();
+      addTaskElement(task);
+      taskInput.value = '';
+      pendingDetails = {time:null, desc:''};
+      timeInput.value = '';
+      descInput.value = '';
+      updateProgress();
+      taskInput.focus();
+    }
+
+    /* —— DOM helpers —— */
+    function addTaskElement(task) {
+      const li = document.createElement('li');
+      li.className = 'task';
+      li.dataset.id = task.id;
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'complete';
+      checkbox.checked = task.done;
+      checkbox.addEventListener('change', () => toggleDone(task.id, li, checkbox.checked));
+      li.appendChild(checkbox);
+
+      const textWrap = document.createElement('div');
+      textWrap.className = 'text-wrap';
+
+      const spanText = document.createElement('span');
+      spanText.textContent = task.text;
+      spanText.className = 'task-text';
+      textWrap.appendChild(spanText);
+
+      if (task.desc) {
+        const desc = document.createElement('small');
+        desc.className = 'description';
+        desc.textContent = task.desc;
+        textWrap.appendChild(desc);
+      }
+
+      li.appendChild(textWrap);
+
+      if (task.time) {
+        const time = document.createElement('span');
+        time.className = 'time';
+        time.textContent = `${task.time} min`;
+        li.appendChild(time);
+      }
+
+      if (task.done) li.classList.add('done');
+
+      tasksEl.appendChild(li);
+    }
+
+    function toggleDone(id, el, state) {
+      const t = tasks.find(t=>t.id===id);
+      if (t) t.done = state;
+      el.classList.toggle('done', state);
+      persist();
+      updateProgress();
+    }
+
+    /* —— Progress —— */
+    function updateProgress(){
+      const total = tasks.length;
+      const completed = tasks.filter(t=>t.done).length;
+      if (!total){
+        progressWrap.style.display='none';
+        return;
+      }
+      progressWrap.style.display='block';
+      progressBar.style.width = `${(completed/total)*100}%`;
+      progressText.textContent = `${completed}/${total} complete`;
+    }
+
+    /* —— Persistence —— */
+    function persist(){
+      localStorage.setItem('glass_tasks_v2', JSON.stringify(tasks));
+    }
+  </script>
+</body>
+</html>
